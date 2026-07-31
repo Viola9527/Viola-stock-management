@@ -194,12 +194,18 @@ async function saveUpdatedHtml(){
   const button=document.getElementById("saveUpdatedHtml"),oldText=button.textContent;button.disabled=true;button.textContent=t("savingHtml");
   try{
     const latestData={...DATA,rows:state.rows,stores:state.stores,savedUpdateDates:updateDates};
-    let orderHtml=await embeddedHtml("orderIframe",ORDERING_GZIP_BASE64),transferHtml=await embeddedHtml("transferIframe",TRANSFER_GZIP_BASE64);
+    let orderHtml=await embeddedHtml("orderIframe",ORDERING_GZIP_BASE64);
+    // Module 3 is rebuilt from its known-good embedded source. Capturing the live
+    // iframe can accidentally persist a browser/hosting error page (for example a
+    // GitHub Pages 404) instead of the transfer dashboard.
+    let transferHtml=await decodeGzipBase64(TRANSFER_GZIP_BASE64);
     try{
       const savedTransfer=localStorage.getItem("regionalTransferDashboardData");
       if(savedTransfer){
         const normalizedTransfer=JSON.stringify(JSON.parse(savedTransfer));
-        transferHtml=transferHtml.replace(/const INITIAL_DATA=[\s\S]*?;\s*let dashboardData=/,()=>`const INITIAL_DATA=${normalizedTransfer};\nlet dashboardData=`)
+        const transferDataPattern=/const INITIAL_DATA=[\s\S]*?;\s*let dashboardData=/;
+        if(!transferDataPattern.test(transferHtml))throw new Error("Module 3 data anchor was not found");
+        transferHtml=transferHtml.replace(transferDataPattern,()=>`const INITIAL_DATA=${normalizedTransfer};\nlet dashboardData=`)
       }
     }catch(error){console.warn("Unable to embed saved transfer data; keeping the last embedded module 3 data.",error)}
     const orderPayload=await gzipBase64(orderHtml),transferPayload=await gzipBase64(transferHtml),clone=document.documentElement.cloneNode(true);
